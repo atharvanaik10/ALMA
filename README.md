@@ -2,12 +2,13 @@
 
 Risk‑aware patrol planning for the UIUC/Champaign area using Stackelberg Security Games (SSG).
 
-This repository is intentionally simple: a small, well‑documented Python library (`alma/`), a tiny FastAPI server (`server.py`), and a minimal Svelte+Tailwind UI in `web/`.
+This repository is intentionally simple: a small, well-documented Python research library (`alma/`), a thin FastAPI server (`server.py`), and a minimal Svelte+Tailwind UI in `web/`.
 
 ## Project Layout
 
--   `alma/`: Core compute library (graph I/O, SSG solve, patrol simulation).
--   `server.py`: Minimal FastAPI with two endpoints: `/plan` and `/graph`. Also serves static files from `web/dist` after a build.
+-   `alma/`: Core research library for graph I/O, SSG solve, patrol simulation, and evaluation.
+-   `server.py`: Thin FastAPI app that wires the API together and serves `web/dist` after a build.
+-   `alma/api/`: Small API layer for request models, graph serialization, and planning orchestration.
 -   Caching: Repeated runs with the same inputs are loaded from `cache/` automatically (see below).
 -   `web/`: Minimal Svelte + Tailwind app (single page) that calls the API and renders a MapLibre map and schedule.
 -   `data/`: Sample graph JSON (`uiuc_graph.json`).
@@ -19,7 +20,7 @@ Removed legacy scaffolding (complex backend, SvelteKit app, Streamlit scripts) t
 ### Python setup
 
 ```bash
-python -m venv .venv && source .venv/bin/activate  # optional
+python -m venv venv && source venv/bin/activate  # optional
 pip install -r requirements.txt
 ```
 
@@ -31,10 +32,21 @@ uvicorn server:app --reload
 
 API will run on `http://localhost:8000`.
 
+By default the server loads `data/uiuc_graph.json`. Override it with:
+
+```bash
+export ALMA_GRAPH_PATH=data/uiuc_graph.json
+```
+
 ### Web UI
 
 Use this for dev:
-`npm run dev`
+
+```bash
+cd web
+npm install
+npm run dev
+```
 
 Use this for prof:
 
@@ -46,16 +58,41 @@ cd ..
 uvicorn server:app --reload   # serves web/dist at /
 ```
 
-Open `http://localhost:8000` and click Start to generate a schedule.
+Open `http://localhost:8000` for the integrated app, or `http://localhost:5173` during frontend development.
 
 ## API
 
--   `POST /plan?format=json|csv` — Run a plan (synchronous) and return the schedule.
+Current API:
 
-    -   Body: `{ graph_path, game: {alpha,beta,gamma,delta,resource_budget}, patrol: {time_steps, num_units, start_index, random_seed} }`
-    -   Returns JSON `{ summary, schedule }` or CSV when `format=csv`.
+-   `GET /healthz` — Lightweight health check.
+-   `GET /graph` — Graph as GeoJSON FeatureCollection for the map.
+-   `POST /plan` — Run the planning pipeline synchronously and return the full result payload.
 
--   `GET /graph?graph_path=...` — Graph as GeoJSON FeatureCollection for the map.
+The frontend is intended to show a simple loading spinner while `POST /plan` runs, then render the returned summary, schedule, and efficiency metrics when the response arrives. This keeps the implementation small and avoids separate job state, polling, or streaming complexity.
+
+Example plan request body:
+
+```json
+{
+	"game": {
+		"alpha": 1,
+		"beta": 1,
+		"gamma": 1,
+		"delta": 1,
+		"resource_budget": 10
+	},
+	"patrol": {
+		"time_steps": 120,
+		"num_units": 5,
+		"start_index": 0,
+		"random_seed": 0
+	},
+	"eval": {
+		"p_event": 0.3,
+		"num_runs": 200
+	}
+}
+```
 
 ## Library (`alma/`)
 
@@ -67,6 +104,7 @@ Key modules:
 -   `patrol.py`: Transition matrix and patrol simulation.
 -   `schedule.py`: High‑level orchestration that wires everything.
 -   `cli.py`: Simple CLI to export schedules as CSV.
+-   `api/services.py`: Shared backend planning/evaluation path used by the API.
 
 Example usage:
 
@@ -88,9 +126,10 @@ python -m alma.cli --graph data/uiuc_graph.json --output patrol_schedule.csv --t
 
 ## Notes
 
--   The UI is intentionally lean: one page, simple form, MapLibre for context, and a compact table.
--   If you’re iterating on research (utility functions, constraints, budgets), concentrate changes inside `alma/`.
--   The API remains synchronous for simplicity; swap in a background task if you need long runs.
+-   The UI is intentionally lean: one page, simple form, spinner-based loading state, and a compact table.
+-   If you’re iterating on research (utility functions, constraints, budgets, solver behavior), concentrate changes inside `alma/`.
+-   Keep `alma/` small and contained. Prefer putting frontend concerns, HTTP glue, and deployment orchestration outside the research core when possible.
+-   The target deployment path is a single synchronous `POST /plan` request rather than job polling or background workers.
 
 ## Setup (Data Prep)
 
@@ -109,41 +148,69 @@ The demo expects a road graph with risk attached from a processed crime log. Run
 -   Process the raw crime log (writes `data/crime_log_processed_location.csv` and `data/crime_log_processed.csv`):
 
     ```bash
-    python -m alma.setup process-crime \
-      --input-xlsx "data/Clery Crime Log - Police Contacts Only - 2021-October 31 2025.xlsx" \
-      --out-base data/crime_log_processed
+    # Edit configuration constants near the top of alma/setup.py first.
+    python -m alma.setup
     ```
 
 -   Build the road graph and risk (writes `data/uiuc_graph.json` and preview images in `assets/`):
 
     ```bash
-    python -m alma.setup build-graph \
-      --west -88.24442 --south 40.09396 --east -88.21858 --north 40.11668 \
-      --crimes-csv data/crime_log_processed.csv \
-      --out-adjacency data/uiuc_graph.json \
-      --out-image-osmnx assets/uiuc_graph.png \
-      --out-image-simple assets/uiuc_graph_simple.png \
-      --out-image-risk assets/uiuc_graph_risk.png \
-      --tolerance-m 15
+    # Set RUN_MODE = "build-graph" in alma/setup.py, then run:
+    python -m alma.setup
     ```
 
 -   Run both steps in sequence:
 
     ```bash
-    python -m alma.setup all \
-      --input-xlsx "data/Clery Crime Log - Police Contacts Only - 2021-October 31 2025.xlsx" \
-      --out-base data/crime_log_processed \
-      --west -88.24442 --south 40.09396 --east -88.21858 --north 40.11668 \
-      --out-adjacency data/uiuc_graph.json \
-      --out-image-osmnx assets/uiuc_graph.png \
-      --out-image-simple assets/uiuc_graph_simple.png \
-      --out-image-risk assets/uiuc_graph_risk.png \
-      --tolerance-m 15
+    # Set RUN_MODE = "all" in alma/setup.py, then run:
+    python -m alma.setup
     ```
 
-The CLI is explicit and does not run automatically; use it whenever you need to regenerate inputs. It fails fast if dependencies or API keys are missing so you can fix configuration early.
+The setup script does not currently accept CLI flags. Configure paths and `RUN_MODE` in `alma/setup.py`, then run `python -m alma.setup`. It fails fast if dependencies or API keys are missing so you can fix configuration early.
 
 ### Caching behavior
 
 -   The solver/simulation is cached on disk under `cache/` keyed by the graph file content and the parameter values.
--   Cache is automatic via `generate_patrol_schedule_cached(...)`. To clear cache, delete files in `cache/`.
+-   Cache is automatic via `generate_patrol_schedule_cached(...)`.
+-   The app retains only the 10 most recent schedule caches (`schedule_*.csv` + `summary_*.json`) and evicts older pairs automatically.
+-   `reverse_geocode_cache.json` is separate and is not pruned automatically because it avoids repeat Google Maps API calls during setup.
+
+## Deployment Notes
+
+For a simple hosted demo, Cloud Run is a good fit because one container can serve both the built frontend and the FastAPI backend.
+
+### Local container run
+
+```bash
+docker build -t alma .
+docker run --rm -p 8080:8080 alma
+```
+
+Open `http://localhost:8080`.
+
+### Cloud Run deploy
+
+Build and push with Google Cloud Build:
+
+```bash
+gcloud builds submit --tag gcr.io/PROJECT_ID/alma
+```
+
+Deploy to Cloud Run:
+
+```bash
+gcloud run deploy alma \
+  --image gcr.io/PROJECT_ID/alma \
+  --platform managed \
+  --region REGION \
+  --allow-unauthenticated \
+  --set-env-vars ALMA_GRAPH_PATH=data/uiuc_graph.json
+```
+
+Recommended defaults for a low-cost personal demo:
+
+-   `min-instances=0`
+-   small memory/CPU
+-   accept cold starts between demos
+
+If you want CI/CD from GitHub, the simplest path is to connect the repository to Cloud Build or Cloud Run source deployment and let Google rebuild and redeploy on each push. That keeps the deploy flow aligned with this repo's goal of staying small and research-focused.

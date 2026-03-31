@@ -2,7 +2,6 @@
   import { createEventDispatcher } from 'svelte'
   import Info from './Info.svelte'
 
-  export let graphPath = ''
   export let alpha = 1
   export let beta = 1
   export let gamma = 1
@@ -17,24 +16,12 @@
 
   export let status = 'idle'
   export let message = ''
-  export let progress = 0
 
   const dispatch = createEventDispatcher()
   function start() { dispatch('start') }
 </script>
 
 <div class="space-y-4 rounded-xl border bg-white p-5 shadow-sm">
-  <div>
-    <div class="text-xs font-medium uppercase tracking-wide text-slate-500">Data</div>
-    <label class="mt-1 block text-sm">
-      <div class="flex items-center justify-between">
-        <span>Graph path</span>
-        <Info text="Path to the adjacency JSON with lat/lon, risk_factor, and neighbors." />
-      </div>
-      <input class="mt-1 w-full rounded-lg border p-2" bind:value={graphPath} />
-    </label>
-  </div>
-
   <div>
     <div class="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Game parameters</div>
     <div class="grid grid-cols-2 gap-2">
@@ -97,14 +84,24 @@
     </div>
   </div>
 
-  <button class="w-full rounded-lg bg-blue-600 px-3 py-2 font-medium text-white hover:bg-blue-700" on:click={start} disabled={status === 'running'}>
-    Start
+  <button
+    class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+    on:click={start}
+    disabled={status === 'running'}
+  >
+    {#if status === 'running'}
+      <span class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
+      <span>Building plan</span>
+    {:else}
+      <span>Start</span>
+    {/if}
   </button>
   {#if status !== 'idle'}
-    <div class="text-sm text-gray-600">{status === 'running' ? 'Running' : status}: {message}</div>
-    <div class="h-2 w-full rounded bg-gray-200">
-      <div class="h-2 rounded bg-blue-500 transition-all" style={`width:${progress}%`} />
+    <div class="flex items-center gap-2 text-sm text-gray-600">
+      {#if status === 'running'}
+        <span class="h-3 w-3 animate-spin rounded-full border-2 border-slate-400 border-t-transparent"></span>
+      {/if}
+      <span>{status === 'running' ? 'Running' : status}: {message}</span>
     </div>
   {/if}
 </div>
-

@@ -5,6 +5,7 @@ from dataclasses import asdict
 import hashlib
 import json
 import os
+from collections.abc import Iterable
 from tempfile import NamedTemporaryFile
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from alma.patrol import build_transition_matrix, simulate_patrol, pick_diverse_s
 from alma.ssg import build_payoffs_from_risk, solve_ssg
 
 logger = logging.getLogger(__name__)
+SCHEDULE_CACHE_KEEP_LATEST = 10
 
 
 def generate_patrol_schedule(
@@ -140,6 +142,33 @@ def _cache_key_for_inputs(graph_path: str | Path, game_params: GameParams, patro
     return h.hexdigest()[:24]
 
 
+def _prune_schedule_cache(cache_path: Path, keep_latest: int = SCHEDULE_CACHE_KEEP_LATEST) -> None:
+    """Keep only the most recent schedule/summary cache pairs.
+
+    Non-schedule cache files in the same directory are left untouched.
+    """
+    if keep_latest < 1:
+        return
+
+    pairs: list[tuple[float, str, Iterable[Path]]] = []
+    schedule_files = cache_path.glob("schedule_*.csv")
+    for schedule_file in schedule_files:
+        key = schedule_file.stem.removeprefix("schedule_")
+        summary_file = cache_path / f"summary_{key}.json"
+        if not summary_file.exists():
+            continue
+        latest_mtime = max(schedule_file.stat().st_mtime, summary_file.stat().st_mtime)
+        pairs.append((latest_mtime, key, (schedule_file, summary_file)))
+
+    pairs.sort(key=lambda item: item[0], reverse=True)
+    for _mtime, _key, files in pairs[keep_latest:]:
+        for file_path in files:
+            try:
+                file_path.unlink(missing_ok=True)
+            except Exception:
+                logger.warning("Failed to remove old cache file: %s", file_path)
+
+
 def generate_patrol_schedule_cached(
     graph_path: str | Path,
     game_params: GameParams,
@@ -215,6 +244,7 @@ def generate_patrol_schedule_cached(
             json.dump(summary, tf, ensure_ascii=False)
             tmp_json = tf.name
         os.replace(tmp_json, meta_path)
+        _prune_schedule_cache(cache_path)
     except Exception:
         # Ignore cache write failures to avoid breaking primary path
         pass

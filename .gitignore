@@ -33,3 +33,5 @@ web/.DS_Store
 
 # App cache and logs
 *.log
+cache/schedule_*.csv
+cache/summary_*.json

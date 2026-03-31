@@ -11,9 +11,7 @@
 
   let status = 'idle' // 'idle' | 'running' | 'done' | 'error'
   let message = ''
-  let progress = 0
 
-  let graphPath = 'data/uiuc_graph.json'
   // Parameters
   let resourceBudget = 10
   let timeSteps = 120
@@ -62,28 +60,33 @@
 
   async function fetchGraph() {
     try {
-      const res = await fetch(
-        `/graph?graph_path=${encodeURIComponent(graphPath)}`,
-      )
+      const res = await fetch('/graph')
       if (!res.ok) throw new Error(await res.text())
       geo = await res.json()
+      return true
     } catch (e) {
       status = 'error'
       message = `Graph load failed: ${String(e)}`
+      return false
     }
   }
 
   async function run() {
     status = 'running'
-    message = 'Queued'
-    progress = 0
+    message = 'Building plan...'
     schedule = []
+    summary = null
+    t = 0
+    tMax = 0
+    isPlaying = false
+    selectedUnit = ''
+    if (trailsLayer) trailsLayer.clearLayers()
+    trailPolylines.clear()
     try {
-      const create = await fetch('/jobs', {
+      const res = await fetch('/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          graph_path: graphPath,
           game: { alpha, beta, gamma, delta, resource_budget: resourceBudget },
           patrol: {
             time_steps: timeSteps,
@@ -94,41 +97,28 @@
           eval: { p_event: pEvent, num_runs: numRuns },
         }),
       })
-      if (!create.ok) throw new Error(await create.text())
-      const { job_id } = await create.json()
-
-      const es = new EventSource(`/jobs/${job_id}/events`)
-      es.addEventListener('progress', async (evt) => {
-        const data = JSON.parse(evt.data)
-        status = data.status
-        message = data.message
-        progress = Math.round((data.progress || 0) * 100)
-        if (data.status === 'done') {
-          es.close()
-          const res = await fetch(`/jobs/${job_id}/schedule?format=json`)
-          if (!res.ok) throw new Error(await res.text())
-          schedule = await res.json()
-          tMax = Math.max(...schedule.map((r) => r.time_step))
-          t = 0
-          // assign colors per unit
-          const uniq = [...new Set(schedule.map((r) => r.unit_id))]
-          unitColors = new Map(
-            uniq.map((u, i) => [u, palette[i % palette.length]]),
-          )
-          legendItems = uniq.map((u) => ({ unit: u, color: unitColors.get(u) || '#ef4444' }))
-          // fetch summary
-          const stat = await fetch(`/jobs/${job_id}`)
-          if (stat.ok) {
-            const info = await stat.json()
-            summary = info.summary || null
-          }
-          if (!geo) await fetchGraph()
-          draw()
-        }
-        if (data.status === 'error') {
-          es.close()
-        }
-      })
+      if (!res.ok) throw new Error(await res.text())
+      const data = await res.json()
+      const rows = Array.isArray(data.schedule)
+        ? data.schedule
+        : Array.isArray(data.schedule_json)
+          ? data.schedule_json
+          : []
+      schedule = rows
+      summary = data.summary || null
+      tMax = schedule.length ? Math.max(...schedule.map((r) => Number(r.time_step) || 0)) : 0
+      const uniq = [...new Set(schedule.map((r) => r.unit_id))]
+      unitColors = new Map(
+        uniq.map((u, i) => [u, palette[i % palette.length]]),
+      )
+      legendItems = uniq.map((u) => ({ unit: u, color: unitColors.get(u) || '#ef4444' }))
+      t = 0
+      if (!geo && !(await fetchGraph())) {
+        throw new Error(message)
+      }
+      draw()
+      status = 'done'
+      message = 'Plan ready'
     } catch (e) {
       status = 'error'
       message = String(e)
@@ -263,6 +253,9 @@
 
   onMount(() => {
     raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+    }
   })
 
   $: filteredSchedule = selectedUnit === ''
@@ -324,12 +317,6 @@
     window.open(url, '_blank')
   }
 
-  function statusLabel() {
-    if (!status) return ''
-    if (status === 'running') return 'Running'
-    return status.charAt(0).toUpperCase() + status.slice(1)
-  }
-
   function fmt(n) {
     if (n == null) return ''
     if (typeof n === 'number') {
@@ -351,7 +338,6 @@
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-[340px_1fr]">
     <aside class="relative z-[1500]">
       <ConfigCard
-        bind:graphPath={graphPath}
         bind:alpha={alpha}
         bind:beta={beta}
         bind:gamma={gamma}
@@ -365,7 +351,6 @@
         bind:numRuns={numRuns}
         {status}
         {message}
-        {progress}
         on:start={run}
       />
     </aside>
