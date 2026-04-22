@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from time import perf_counter
-from typing import Optional
+from typing import Literal, Optional
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query
@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from alma.api.graph import graph_feature_collection
 from alma.api.models import PlanRequest, PlanResponse
-from alma.api.services import run_plan
+from alma.api.services import run_plan_efficiency, run_plan_main
 from alma.logging_utils import configure_logging
 
 
@@ -43,14 +43,18 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.post("/plan", response_model=PlanResponse)
-    def plan(payload: PlanRequest) -> PlanResponse:
+    def plan(
+        payload: PlanRequest,
+        mode: Literal["main", "efficiency"] = Query(default="main"),
+    ) -> PlanResponse:
         request_id = str(uuid4())[:8]
         started_at = perf_counter()
         last_progress: tuple[int, str] | None = None
 
         logger.info(
-            "[plan:%s] started graph=%s time_steps=%s num_units=%s num_runs=%s",
+            "[plan:%s] started mode=%s graph=%s time_steps=%s num_units=%s num_runs=%s",
             request_id,
+            mode,
             payload.graph_path or "default",
             payload.patrol.time_steps,
             payload.patrol.num_units,
@@ -67,7 +71,13 @@ def create_app() -> FastAPI:
             logger.info("[plan:%s] %s%% %s", request_id, percent, message)
 
         try:
-            artifacts = run_plan(payload, progress=log_progress)
+            if mode == "efficiency":
+                summary = run_plan_efficiency(payload, progress=log_progress)
+                schedule: list = []
+            else:
+                artifacts = run_plan_main(payload, progress=log_progress)
+                summary = artifacts.summary
+                schedule = artifacts.schedule_json
         except FileNotFoundError as exc:
             elapsed = perf_counter() - started_at
             logger.warning("[plan:%s] failed after %.2fs: %s", request_id, elapsed, exc)
@@ -78,12 +88,14 @@ def create_app() -> FastAPI:
             raise
         elapsed = perf_counter() - started_at
         logger.info(
-            "[plan:%s] completed in %.2fs schedule_rows=%s",
+            "[plan:%s] completed mode=%s in %.2fs schedule_rows=%s summary_keys=%s",
             request_id,
+            mode,
             elapsed,
-            len(artifacts.schedule_json),
+            len(schedule),
+            len(summary),
         )
-        return PlanResponse(summary=artifacts.summary, schedule=artifacts.schedule_json)
+        return PlanResponse(summary=summary, schedule=schedule)
 
     dist_path = Path(__file__).parent / "web" / "dist"
     if dist_path.exists():

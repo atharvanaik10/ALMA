@@ -15,7 +15,7 @@ This repository is a small research/demo application for ALMA patrol planning:
 - Prefer minimal, surgical changes. This repo is intentionally simple.
 - Keep backend logic inside `alma/` and keep `server.py` thin.
 - Treat `alma/` as the research core. Keep it simple, contained, and focused on the algorithmic pieces rather than UI or deployment concerns.
-- Prefer putting HTTP glue, frontend state, and orchestration outside `alma/` when possible.
+- Prefer putting HTTP glue, frontend state, and request orchestration outside `alma/` when possible.
 - Preserve the current API shape unless the task explicitly calls for API changes.
 - Do not assume a system `python` binary exists. Use `python3` or `venv/bin/python`.
 - Use `rg` for search and `npm run build` for frontend verification.
@@ -35,8 +35,13 @@ This repository is a small research/demo application for ALMA patrol planning:
 
 - The current Dockerfile is structured for a single Cloud Run container serving both the API and built frontend.
 - `server.py` serves the frontend only when `web/dist` exists.
-- The current API uses a synchronous `POST /plan` endpoint that returns the full payload in one response.
-- The frontend should stay simple: show a spinner while the request runs, then render the returned schedule, efficiency metrics, and summary data.
+- The current API uses a single synchronous `POST /plan` route with query-controlled modes:
+  - `mode=main` returns the main plan outputs.
+  - `mode=efficiency` returns only the optional efficiency-by-units chart data.
+- The frontend should stay simple:
+  - show the main page spinner while `mode=main` runs
+  - if the efficiency chart is selected, auto-run `mode=efficiency` after the main response arrives
+  - show the loading spinner only in the chart area while the optional sweep runs
 - Avoid reintroducing in-memory job state unless there is a clear research need.
 - If deploying to Cloud Run, prefer a single container with request-based billing and low minimum instances.
 
