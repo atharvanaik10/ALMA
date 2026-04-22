@@ -57,8 +57,13 @@ def _schedule_to_csv(schedule_json: list[dict[str, Any]]) -> str:
 
 def _resolve_inputs(payload: PlanRequest) -> tuple[Path, GameParams, PatrolParams]:
     graph_path = resolve_graph_path(payload.graph_path)
-    game = GameParams(**payload.game.model_dump())
-    patrol = PatrolParams(**payload.patrol.model_dump())
+    unit_count = max(1, int(round(payload.game.resource_budget)))
+    game_data = payload.game.model_dump()
+    game_data["resource_budget"] = float(unit_count)
+    patrol_data = payload.patrol.model_dump()
+    patrol_data["num_units"] = unit_count
+    game = GameParams(**game_data)
+    patrol = PatrolParams(**patrol_data)
     return graph_path, game, patrol
 
 

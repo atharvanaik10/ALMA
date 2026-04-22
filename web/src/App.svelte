@@ -15,7 +15,7 @@
   // Parameters
   let resourceBudget = 10
   let timeSteps = 120
-  let units = 5
+  let pickDiverseStartNodes = true
   let startIndex = 0
   let seed = 0
   let pEvent = 0.3
@@ -77,11 +77,13 @@
   }
 
   function buildPayload() {
+    const unitCount = Math.max(1, Math.round(Number(resourceBudget) || 1))
     return {
-      game: { alpha, beta, gamma, delta, resource_budget: resourceBudget },
+      game: { alpha, beta, gamma, delta, resource_budget: unitCount },
       patrol: {
         time_steps: timeSteps,
-        num_units: units,
+        num_units: unitCount,
+        pick_diverse_start_nodes: pickDiverseStartNodes,
         start_index: startIndex,
         random_seed: seed,
       },
@@ -392,7 +394,7 @@
         bind:delta={delta}
         bind:resourceBudget={resourceBudget}
         bind:timeSteps={timeSteps}
-        bind:units={units}
+        bind:pickDiverseStartNodes={pickDiverseStartNodes}
         bind:startIndex={startIndex}
         bind:seed={seed}
         bind:pEvent={pEvent}

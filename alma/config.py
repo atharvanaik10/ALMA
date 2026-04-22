@@ -35,6 +35,8 @@ class PatrolParams:
     Attributes:
         time_steps: Number of timesteps (T) to simulate, inclusive (0..T).
         num_units: Number of patrol units moving simultaneously.
+        pick_diverse_start_nodes: When true, choose starting nodes with the
+            farthest-sampling helper instead of using `start_index`.
         start_index: If an int, the shared start node index. When multiple
             units are used, ALMA will typically replace this with diverse
             starting positions; see schedule.generate_patrol_schedule.
@@ -42,6 +44,7 @@ class PatrolParams:
     """
     time_steps: int = 480
     num_units: int = 5
+    pick_diverse_start_nodes: bool = True
     start_index: int = 0
     random_seed: int = 0
 

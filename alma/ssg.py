@@ -29,7 +29,6 @@ def build_payoffs_from_risk(risk: np.ndarray, alpha: float, beta: float, gamma: 
     attacker_loss = -delta * risk
     return defender_reward, defender_loss, attacker_reward, attacker_loss
 
-
 def solve_ssg(R_d, P_d, R_a, P_a, w, K):
     """Solve a single-defender Stackelberg Security Game by enumeration.
 

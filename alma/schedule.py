@@ -81,9 +81,14 @@ def generate_patrol_schedule(
     report(0.60, "Building transition matrix...")
     matrix = build_transition_matrix(graph, node_list, coverage)
     report(0.70, "Simulating patrol...")
-    # Choose diverse starting nodes for each unit
-    if patrol_params.num_units > 1:
-        start_nodes = pick_diverse_start_nodes(graph, node_list, patrol_params.num_units, seed=patrol_params.random_seed)
+    # Optionally choose diverse starting nodes instead of using the provided start index.
+    if patrol_params.pick_diverse_start_nodes:
+        start_nodes = pick_diverse_start_nodes(
+            graph,
+            node_list,
+            patrol_params.num_units,
+            seed=patrol_params.random_seed,
+        )
         idx_map = {nid: i for i, nid in enumerate(node_list)}
         start_indices = [idx_map[nid] for nid in start_nodes]
     else:

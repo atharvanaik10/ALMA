@@ -79,6 +79,8 @@ This keeps the implementation small while avoiding separate job state, polling, 
 
 Example plan request body:
 
+The UI now exposes a single unit-count control labeled as the number of patrol units. That value drives both `game.resource_budget` and `patrol.num_units`; the resource budget is interpreted as the number of available patrol units rather than as a separate independent budget.
+
 ```json
 {
 	"game": {
@@ -86,7 +88,7 @@ Example plan request body:
 		"beta": 1,
 		"gamma": 1,
 		"delta": 1,
-		"resource_budget": 10
+		"resource_budget": 5
 	},
 	"patrol": {
 		"time_steps": 120,
@@ -119,7 +121,7 @@ Example usage:
 from alma.config import GameParams, PatrolParams
 from alma.schedule import generate_patrol_schedule
 
-game = GameParams(alpha=1, beta=1, gamma=1, delta=1, resource_budget=10)
+game = GameParams(alpha=1, beta=1, gamma=1, delta=1, resource_budget=5)
 patrol = PatrolParams(time_steps=120, num_units=5, start_index=0, random_seed=0)
 df, summary = generate_patrol_schedule('data/uiuc_graph.json', game, patrol)
 print(df.head(), summary)
@@ -134,7 +136,9 @@ python -m alma.cli --graph data/uiuc_graph.json --output patrol_schedule.csv --t
 ## Notes
 
 -   The UI is intentionally lean: one page, simple form, spinner-based loading state, and a compact table.
--   If you’re iterating on research (utility functions, constraints, budgets, solver behavior), concentrate changes inside `alma/`.
+-   The UI no longer exposes separate resource budget and patrol-unit controls. One unit-count input drives both `game.resource_budget` and `patrol.num_units`.
+-   In this repo, interpret the resource budget as the number of patrol units available to the defender.
+-   If you’re iterating on research (utility functions, constraints, solver behavior), concentrate changes inside `alma/`.
 -   Keep `alma/` small and contained as the research core. Prefer putting frontend concerns, HTTP glue, request orchestration, and deployment behavior outside the research package when possible.
 -   The target deployment path is a single `POST /plan` route with query-controlled modes rather than job polling or background workers.
 

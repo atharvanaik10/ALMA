@@ -111,6 +111,7 @@ def simulate_patrol(
         current = [int(s) % n for s in start_idx]
     else:
         current = [int(start_idx) % n] * num_units
+    previous: list[Optional[int]] = [None] * num_units
     records: list[tuple[int, int, str]] = []
 
     update_every = max(1, (time_steps + 1) // 50)
@@ -119,7 +120,19 @@ def simulate_patrol(
             records.append((t, unit, node_list[current[unit]]))
         if t < time_steps:
             for unit in range(num_units):
-                current[unit] = int(np.random.choice(n, p=matrix[current[unit]]))
+                row = matrix[current[unit]]
+                prev = previous[unit]
+                probs = row
+                if prev is not None and row[prev] > 0:
+                    remaining = row.sum() - row[prev]
+                    if remaining > 0:
+                        # Avoid immediate backtracking when another move is available.
+                        probs = row.copy()
+                        probs[prev] = 0.0
+                        probs /= remaining
+                next_idx = int(np.random.choice(n, p=probs))
+                previous[unit] = current[unit]
+                current[unit] = next_idx
         if progress is not None and (t % update_every == 0 or t == time_steps):
             progress(
                 t / float(time_steps if time_steps > 0 else 1), "Simulating patrol..."
