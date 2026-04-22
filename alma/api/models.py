@@ -16,6 +16,7 @@ class GameParamsModel(BaseModel):
 class PatrolParamsModel(BaseModel):
     time_steps: int = Field(default=480, ge=1, le=10_000)
     num_units: int = Field(default=5, ge=1, le=1_000)
+    pick_diverse_start_nodes: bool = True
     start_index: int = Field(default=0, ge=0)
     random_seed: int = Field(default=0, ge=0)
 

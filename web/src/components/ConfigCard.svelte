@@ -8,7 +8,7 @@
   export let delta = 1
   export let resourceBudget = 10
   export let timeSteps = 120
-  export let units = 5
+  export let pickDiverseStartNodes = true
   export let startIndex = 0
   export let seed = 0
   export let pEvent = 0.3
@@ -44,8 +44,8 @@
       </label>
     </div>
     <label class="mt-2 block text-sm">
-      <div class="flex items-center justify-between"><span>Resource budget</span><Info text="K: Upper bound on the total coverage allocation across nodes (not # of units)." /></div>
-      <input type="number" class="mt-1 w-full rounded-lg border p-2" bind:value={resourceBudget} />
+      <div class="flex items-center justify-between"><span>Resource budget</span><Info text="Resource budget K. In this app, it is interpreted as the number of patrol units and also drives the patrol simulation unit count." /></div>
+      <input type="number" min="1" step="1" class="mt-1 w-full rounded-lg border p-2" bind:value={resourceBudget} />
     </label>
   </div>
 
@@ -57,18 +57,32 @@
         <input type="number" class="mt-1 w-full rounded-lg border p-2" bind:value={timeSteps} />
       </label>
       <label class="text-sm">
-        <div class="flex items-center justify-between"><span>Units</span><Info text="Number of patrol units moving simultaneously." /></div>
-        <input type="number" class="mt-1 w-full rounded-lg border p-2" bind:value={units} />
-      </label>
-      <label class="text-sm">
-        <div class="flex items-center justify-between"><span>Start index</span><Info text="Index in the node list where all units start (0-based)." /></div>
-        <input type="number" class="mt-1 w-full rounded-lg border p-2" bind:value={startIndex} />
-      </label>
-      <label class="text-sm">
         <div class="flex items-center justify-between"><span>Seed</span><Info text="Random seed for reproducible simulation." /></div>
         <input type="number" class="mt-1 w-full rounded-lg border p-2" bind:value={seed} />
       </label>
     </div>
+    <label class="mt-3 flex items-start gap-3 rounded-lg border p-3 text-sm">
+      <input
+        type="checkbox"
+        class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+        bind:checked={pickDiverseStartNodes}
+      />
+      <div>
+        <div class="flex items-center gap-2">
+          <span>Pick diverse start nodes</span>
+          <Info text="When enabled, ALMA chooses far-apart starting nodes automatically. When disabled, all units start from the start index below." />
+        </div>
+      </div>
+    </label>
+    <label class="mt-3 block text-sm">
+      <div class="flex items-center justify-between"><span>Start index</span><Info text="Index in the node list where all units start (0-based). Disabled when diverse starting nodes are selected." /></div>
+      <input
+        type="number"
+        class="mt-1 w-full rounded-lg border p-2 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+        bind:value={startIndex}
+        disabled={pickDiverseStartNodes}
+      />
+    </label>
   </div>
 
   <div>
