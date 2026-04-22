@@ -13,6 +13,7 @@
   export let seed = 0
   export let pEvent = 0.3
   export let numRuns = 200
+  export let includeEfficiencySweep = false
 
   export let status = 'idle'
   export let message = ''
@@ -82,6 +83,22 @@
         <input type="number" min="1" class="mt-1 w-full rounded-lg border p-2" bind:value={numRuns} />
       </label>
     </div>
+    <label class="mt-3 flex items-start gap-3 rounded-lg border p-3 text-sm">
+      <input
+        type="checkbox"
+        class="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+        bind:checked={includeEfficiencySweep}
+      />
+      <div>
+        <div class="flex items-center gap-2">
+          <span>Efficiency comparison graph</span>
+          <Info text="Optionally compute the by-units comparison sweep after the main plan finishes. This is slower and loads separately." />
+        </div>
+        <div class="mt-1 text-xs text-slate-500">
+          Main results load first. The chart is fetched in a second step.
+        </div>
+      </div>
+    </label>
   </div>
 
   <button

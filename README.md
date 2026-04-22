@@ -66,9 +66,16 @@ Current API:
 
 -   `GET /healthz` — Lightweight health check.
 -   `GET /graph` — Graph as GeoJSON FeatureCollection for the map.
--   `POST /plan` — Run the planning pipeline synchronously and return the full result payload.
+-   `POST /plan?mode=main` — Run the main planning pipeline synchronously and return the core result payload.
+-   `POST /plan?mode=efficiency` — Run only the optional efficiency-by-units comparison sweep.
 
-The frontend is intended to show a simple loading spinner while `POST /plan` runs, then render the returned summary, schedule, and efficiency metrics when the response arrives. This keeps the implementation small and avoids separate job state, polling, or streaming complexity.
+The frontend uses a two-phase flow while keeping a single planning route:
+
+-   First call `POST /plan?mode=main` and render everything that is ready immediately: summary, schedule, baseline metrics, and main evaluation outputs.
+-   If the user selected the optional efficiency comparison graph, automatically follow with `POST /plan?mode=efficiency`.
+-   While the second call is running, only the chart area shows a loading spinner. The rest of the page stays usable with the main results already visible.
+
+This keeps the implementation small while avoiding separate job state, polling, or streaming complexity.
 
 Example plan request body:
 
@@ -128,8 +135,8 @@ python -m alma.cli --graph data/uiuc_graph.json --output patrol_schedule.csv --t
 
 -   The UI is intentionally lean: one page, simple form, spinner-based loading state, and a compact table.
 -   If you’re iterating on research (utility functions, constraints, budgets, solver behavior), concentrate changes inside `alma/`.
--   Keep `alma/` small and contained. Prefer putting frontend concerns, HTTP glue, and deployment orchestration outside the research core when possible.
--   The target deployment path is a single synchronous `POST /plan` request rather than job polling or background workers.
+-   Keep `alma/` small and contained as the research core. Prefer putting frontend concerns, HTTP glue, request orchestration, and deployment behavior outside the research package when possible.
+-   The target deployment path is a single `POST /plan` route with query-controlled modes rather than job polling or background workers.
 
 ## Setup (Data Prep)
 

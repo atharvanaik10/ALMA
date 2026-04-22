@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+
 class GameParamsModel(BaseModel):
     alpha: float = Field(default=1.0, ge=0.0)
     beta: float = Field(default=1.0, ge=0.0)
@@ -39,4 +40,4 @@ class ScheduleRow(BaseModel):
 
 class PlanResponse(BaseModel):
     summary: dict[str, Any]
-    schedule: list[ScheduleRow]
+    schedule: list[ScheduleRow] = Field(default_factory=list)

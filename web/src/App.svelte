@@ -20,6 +20,7 @@
   let seed = 0
   let pEvent = 0.3
   let numRuns = 200
+  let includeEfficiencySweep = false
   let alpha = 1,
     beta = 1,
     gamma = 1,
@@ -57,6 +58,10 @@
   let trailsLayer = null
   let trailPolylines = new Map()
   let showTrails = true
+  let efficiencyStatus = 'idle' // 'idle' | 'running' | 'done' | 'error'
+  let efficiencyMessage = ''
+  let efficiencyChart = null
+  let runToken = 0
 
   async function fetchGraph() {
     try {
@@ -71,9 +76,56 @@
     }
   }
 
+  function buildPayload() {
+    return {
+      game: { alpha, beta, gamma, delta, resource_budget: resourceBudget },
+      patrol: {
+        time_steps: timeSteps,
+        num_units: units,
+        start_index: startIndex,
+        random_seed: seed,
+      },
+      eval: { p_event: pEvent, num_runs: numRuns },
+    }
+  }
+
+  async function loadEfficiencySweep(payload, token) {
+    efficiencyStatus = 'running'
+    efficiencyMessage = 'Computing efficiency comparison graph...'
+    try {
+      const res = await fetch('/plan?mode=efficiency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const data = await res.json()
+      if (token !== runToken) return
+      const nextSummary = data.summary || {}
+      efficiencyChart = {
+        units: Array.isArray(nextSummary.eff_by_units_units) ? nextSummary.eff_by_units_units : [],
+        ssg: Array.isArray(nextSummary.eff_by_units_ssg) ? nextSummary.eff_by_units_ssg : [],
+        uniform: Array.isArray(nextSummary.eff_by_units_uniform) ? nextSummary.eff_by_units_uniform : [],
+      }
+      efficiencyStatus = 'done'
+      efficiencyMessage = efficiencyChart.units.length
+        ? 'Efficiency comparison ready'
+        : 'No efficiency comparison data returned'
+    } catch (e) {
+      if (token !== runToken) return
+      efficiencyStatus = 'error'
+      efficiencyMessage = String(e)
+    }
+  }
+
   async function run() {
+    const token = ++runToken
+    const payload = buildPayload()
     status = 'running'
     message = 'Building plan...'
+    efficiencyStatus = 'idle'
+    efficiencyMessage = ''
+    efficiencyChart = null
     schedule = []
     summary = null
     t = 0
@@ -83,22 +135,14 @@
     if (trailsLayer) trailsLayer.clearLayers()
     trailPolylines.clear()
     try {
-      const res = await fetch('/plan', {
+      const res = await fetch('/plan?mode=main', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          game: { alpha, beta, gamma, delta, resource_budget: resourceBudget },
-          patrol: {
-            time_steps: timeSteps,
-            num_units: units,
-            start_index: startIndex,
-            random_seed: seed,
-          },
-          eval: { p_event: pEvent, num_runs: numRuns },
-        }),
+        body: JSON.stringify(payload),
       })
       if (!res.ok) throw new Error(await res.text())
       const data = await res.json()
+      if (token !== runToken) return
       const rows = Array.isArray(data.schedule)
         ? data.schedule
         : Array.isArray(data.schedule_json)
@@ -119,7 +163,11 @@
       draw()
       status = 'done'
       message = 'Plan ready'
+      if (includeEfficiencySweep) {
+        loadEfficiencySweep(payload, token)
+      }
     } catch (e) {
+      if (token !== runToken) return
       status = 'error'
       message = String(e)
     }
@@ -349,6 +397,7 @@
         bind:seed={seed}
         bind:pEvent={pEvent}
         bind:numRuns={numRuns}
+        bind:includeEfficiencySweep={includeEfficiencySweep}
         {status}
         {message}
         on:start={run}
@@ -382,9 +431,29 @@
         {#if summary}
           <div class="rounded-xl border bg-white p-4 shadow-sm">
             <div class="mb-4 text-xs font-medium uppercase tracking-wide text-slate-500">Efficiency</div>
-            {#if Array.isArray(summary?.eff_by_units_units)}
+            {#if includeEfficiencySweep || efficiencyStatus !== 'idle' || efficiencyChart}
               <div class="mb-4">
-                <EfficiencyChart units={summary.eff_by_units_units} ssg={summary.eff_by_units_ssg} uniform={summary.eff_by_units_uniform} />
+                {#if efficiencyStatus === 'running'}
+                  <div class="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-slate-50 p-6 text-center">
+                    <span class="h-7 w-7 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600"></span>
+                    <div class="text-sm font-medium text-slate-700">Computing efficiency comparison graph</div>
+                    <div class="text-xs text-slate-500">Main results are ready. This chart loads separately.</div>
+                  </div>
+                {:else if efficiencyStatus === 'error'}
+                  <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                    Failed to load efficiency comparison graph: {efficiencyMessage}
+                  </div>
+                {:else if efficiencyChart && efficiencyChart.units.length}
+                  <EfficiencyChart
+                    units={efficiencyChart.units}
+                    ssg={efficiencyChart.ssg}
+                    uniform={efficiencyChart.uniform}
+                  />
+                {:else if includeEfficiencySweep}
+                  <div class="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    Efficiency comparison graph not loaded yet.
+                  </div>
+                {/if}
               </div>
             {/if}
             <EfficiencyCard {summary} />
